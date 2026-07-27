@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inventario · Galería de Vehículos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #15171b;
+    --surface: #1e2126;
+    --line: #33383f;
+    --text: #f1efe9;
+    --text-muted: #8b9099;
+    --amber: #e8a33d;
+    --amber-dim: #6b5427;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 15% 0%, #1c1f24 0%, var(--bg) 45%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header.top {
+    padding: 48px 6vw 32px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-size: clamp(32px, 5vw, 56px);
+    margin: 0 0 8px;
+    line-height: 1;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 15px;
+    margin: 0 0 28px;
+    max-width: 60ch;
+  }
+
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+  #search {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    width: 280px;
+    max-width: 100%;
+  }
+  #search:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
+  #search::placeholder { color: var(--text-muted); }
+
+  .count-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  main { padding: 40px 6vw 80px; }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 28px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.15s ease;
+  }
+  .card:hover { border-color: #454c55; }
+
+  .card-index {
+    position: absolute;
+    margin: 12px;
+    z-index: 2;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--bg);
+    background: var(--amber);
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .image-wrap { position: relative; aspect-ratio: 4 / 3; background: #0f1114; }
+  .image-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .thumbs { display: flex; gap: 6px; padding: 8px; background: #191c20; }
+  .thumbs button {
+    all: unset;
+    cursor: pointer;
+    width: 52px;
+    height: 40px;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .thumbs button.active { border-color: var(--amber); }
+  .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .card-body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+
+  .plate {
+    align-self: flex-start;
+    border: 2px solid var(--amber-dim);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    background: #201a10;
+  }
+
+  .modelo {
+    font-family: 'Oswald', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin: 0;
+  }
+
+  .spec-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+    margin-top: auto;
+  }
+  .spec-row svg { flex-shrink: 0; }
+
+  .state-msg {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 60px 0;
+    text-align: center;
+  }
+  .state-msg.error { color: #e77a6b; }
+
+  @media (max-width: 480px) {
+    header.top { padding: 36px 5vw 24px; }
+    main { padding: 28px 5vw 60px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="eyebrow">Catálogo · Disponibles hoy</p>
+  <h1>Inventario de Vehículos</h1>
+  <p class="subtitle">Explora las unidades disponibles. Toca las miniaturas para cambiar la foto principal.</p>
+  <div class="controls">
+    <input id="search" type="text" placeholder="Buscar por marca o modelo…" autocomplete="off" />
+    <span class="count-tag" id="count-tag"></span>
+  </div>
+</header>
+
+<main>
+  <div id="grid"></div>
+</main>
+
+<script>
+  const grid = document.getElementById('grid');
+  const searchInput = document.getElementById('search');
+  const countTag = document.getElementById('count-tag');
+
+  let allRows = [];
+
+  function pickImages(row) {
+    return [row.imagen1_url, row.imagen2_url, row.imagen3_url].filter(
+      (u) => u && String(u).trim().length > 0
+    );
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+  }
+
+  function cardTemplate(row, index) {
+    const images = pickImages(row);
+    const mainImg = images[0] || '';
+    const marca = row.marca || '';
+    const modelo = row.modelo || 'Sin modelo';
+    const capacidad = row.capacidad || '—';
+
+    const thumbsHtml = images
+      .map(
+        (src, i) => `
+        <button data-src="${escapeAttr(src)}" class="${i === 0 ? 'active' : ''}" aria-label="Ver foto ${i + 1}">
+          <img src="${escapeAttr(src)}" alt="" loading="lazy" />
+        </button>`
+      )
+      .join('');
+
+    return `
+      <article class="card" data-marca="${escapeAttr(marca)}" data-modelo="${escapeAttr(modelo)}">
+        <div class="image-wrap">
+          <span class="card-index">UNIDAD ${String(index + 1).padStart(2, '0')}</span>
+          <img class="main-img" src="${escapeAttr(mainImg)}" alt="${escapeAttr(marca)} ${escapeAttr(modelo)}" loading="lazy" />
+        </div>
+        ${images.length > 1 ? `<div class="thumbs">${thumbsHtml}</div>` : ''}
+        <div class="card-body">
+          <span class="plate">${escapeHtml(marca)}</span>
+          <h2 class="modelo">${escapeHtml(modelo)}</h2>
+          <div class="spec-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 17h16M6 17V9a2 2 0 012-2h8a2 2 0 012 2v8M8 21h8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Capacidad: ${escapeHtml(String(capacidad))}</span>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function render(rows) {
+    if (rows.length === 0) {
+      grid.innerHTML = '<p class="state-msg">No hay vehículos que coincidan con tu búsqueda.</p>';
+      countTag.textContent = '';
+      return;
+    }
+    grid.innerHTML = rows.map(cardTemplate).join('');
+    countTag.textContent = rows.length + ' unidad' + (rows.length === 1 ? '' : 'es');
+
+    grid.querySelectorAll('.card').forEach((card) => {
+      const mainImg = card.querySelector('.main-img');
+      const thumbBtns = card.querySelectorAll('.thumbs button');
+      thumbBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          mainImg.src = btn.dataset.src;
+          thumbBtns.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+    });
+  }
+
+  function applyFilter() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { render(allRows); return; }
+    const filtered = allRows.filter((row) => {
+      const marca = (row.marca || '').toLowerCase();
+      const modelo = (row.modelo || '').toLowerCase();
+      return marca.includes(q) || modelo.includes(q);
+    });
+    render(filtered);
+  }
+
+  searchInput.addEventListener('input', applyFilter);
+
+  // Pega aquí la URL /exec que te da Apps Script al implementar como Web App.
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuvk3QJReyGlA1hzazCUT7LilnDZbVZWBg4dIqmkulZrRK-M_kRlh1-lTjn4HcGkFq/exec';
+
+  async function loadVehiculos() {
+    grid.innerHTML = '<p class="state-msg">Cargando inventario…</p>';
+    try {
+      const res = await fetch(SCRIPT_URL);
+      const payload = await res.json();
+
+      if (!payload.ok) {
+        throw new Error(payload.error || 'Error desconocido');
+      }
+
+      allRows = Array.isArray(payload.data) ? payload.data : [];
+      render(allRows);
+    } catch (err) {
+      grid.innerHTML = '<p class="state-msg error">No se pudo cargar el inventario. ' + escapeHtml(err.message) + '</p>';
+    }
+  }
+
+  loadVehiculos();
+</script>
+
+</body>
+</html>
