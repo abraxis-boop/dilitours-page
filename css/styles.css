@@ -4,13 +4,20 @@
 
 /* --- 1. Variables & Design Tokens (Extraídos de logo-dilitours.png) --- */
 :root {
-  --clr-brand-dark: #0a1936;            /* Azul Marino Ejecutivo */
-  --clr-brand-primary: #0097b2;         /* Turquesa / Cian Logotipo */
-  --clr-brand-primary-hover: #007d94;   /* Turquesa Oscuro Hover */
-  --clr-brand-accent: #00b4d8;          /* Cian Azulado Vibrante */
-  --clr-brand-surface: #f8fafc;         /* Fondo General Limpio */
-  --clr-brand-card: #ffffff;            /* Fondo Tarjetas */
-  --clr-brand-alt: #f0f4f8;             /* Fondo Secciones Alternas */
+  --clr-brand-dark: #0a1936;
+  /* Azul Marino Ejecutivo */
+  --clr-brand-primary: #0097b2;
+  /* Turquesa / Cian Logotipo */
+  --clr-brand-primary-hover: #007d94;
+  /* Turquesa Oscuro Hover */
+  --clr-brand-accent: #00b4d8;
+  /* Cian Azulado Vibrante */
+  --clr-brand-surface: #f8fafc;
+  /* Fondo General Limpio */
+  --clr-brand-card: #ffffff;
+  /* Fondo Tarjetas */
+  --clr-brand-alt: #f0f4f8;
+  /* Fondo Secciones Alternas */
 
   --clr-text-main: #0f172a;
   --clr-text-muted: #475569;
@@ -240,13 +247,43 @@ h1 em {
   border: none;
   cursor: pointer;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
   gap: 5px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
 }
 
 .nav-toggle span {
-  width: 22px;
+  width: 24px;
   height: 2px;
   background-color: var(--clr-brand-dark);
+  border-radius: 2px;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* Animación a "X" cuando el menú está abierto */
+.nav-toggle.is-active span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.nav-toggle.is-active span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-toggle.is-active span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+body.nav-open {
+  overflow: hidden;
+}
+
+.nav-toggle {
+  position: relative;
+  z-index: 102;
+  /* por encima de .main-nav (100) y .nav-overlay (99) */
 }
 
 /* --- 5. Hero & Boarding Pass --- */
@@ -456,6 +493,7 @@ h1 em {
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -645,6 +683,7 @@ h1 em {
     transform: scale(1);
     opacity: 0.8;
   }
+
   100% {
     transform: scale(1.5);
     opacity: 0;
@@ -665,7 +704,7 @@ h1 em {
   pointer-events: none;
   transform: translateX(10px);
   transition: opacity 0.3s ease, transform 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .whatsapp-float:hover .whatsapp-tooltip {
@@ -774,13 +813,26 @@ h1 em {
   animation: shimmer 1.5s infinite linear;
 }
 
-.skeleton-line.short { width: 35%; }
-.skeleton-line.medium { width: 65%; }
-.skeleton-line.full { width: 100%; }
+.skeleton-line.short {
+  width: 35%;
+}
+
+.skeleton-line.medium {
+  width: 65%;
+}
+
+.skeleton-line.full {
+  width: 100%;
+}
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .catalog-loading-status {
@@ -810,12 +862,21 @@ h1 em {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulseBg {
-  0%, 100% { background-color: rgba(0, 151, 178, 0.04); }
-  50% { background-color: rgba(0, 151, 178, 0.1); }
+
+  0%,
+  100% {
+    background-color: rgba(0, 151, 178, 0.04);
+  }
+
+  50% {
+    background-color: rgba(0, 151, 178, 0.1);
+  }
 }
 
 /* --- 11. Modal de Detalles --- */
@@ -973,4 +1034,4 @@ h1 em {
   color: rgba(255, 255, 255, 0.8);
   max-width: 600px;
   margin: 0 auto 2rem;
-}
+}

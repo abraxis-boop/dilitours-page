@@ -3,11 +3,12 @@
    ========================================================================== */
 
 // ⚠️ PON AQUÍ LA URL DE TU ÚLTIMO DESPLIEGUE DE APPS SCRIPT
-const WEB_APP_URL = "https://script.google.com/a/macros/diligenciascorp.org/s/AKfycbwWq6aaAL875zt08s_smj4W7niBWKDjY-plBeZd5EAZg9JBTzajFisFaXlmkHczvYiM/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxhD4cZFe_u7Ucic9DEZt591ZSBlv-MScoRHpJkeWg7xAU58uV9pkEYY3TAvwAFt_wW/exec";
 
 document.addEventListener('DOMContentLoaded', () => {
   initDynamicLoaders();
   initQuoteForms();
+  initMobileNav();
 });
 
 /* --- Inyecta la animación de carga (Skeleton Loader + Banner Animado) --- */
@@ -250,21 +251,21 @@ function renderCarCard(item, index) {
   const thumbsHtml = images.length > 1
     ? `<div style="display:flex; gap:6px; padding:8px; background: rgba(0,0,0,0.04);">
         ${images
-          .map((src, i) => `
+      .map((src, i) => `
             <button type="button" class="car-thumb" data-full="${resizedImage(src, 500, 320)}"
               style="all:unset; cursor:pointer; width:48px; height:36px; border-radius:4px; overflow:hidden;
               border:1px solid ${i === 0 ? 'var(--clr-brand-primary)' : 'var(--clr-border)'}; flex-shrink:0;">
               <img src="${resizedImage(src, 100, 75)}" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block;">
             </button>`)
-          .join('')}
+      .join('')}
       </div>`
     : '';
 
   return `
     <div class="card">
       ${mainImg
-        ? `<img class="car-main-img" src="${mainImg}" alt="${item.marca || ''} ${item.modelo || ''}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">`
-        : ''}
+      ? `<img class="car-main-img" src="${mainImg}" alt="${item.marca || ''} ${item.modelo || ''}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">`
+      : ''}
       ${thumbsHtml}
       <div style="padding: 1.25rem; display: flex; flex-direction: column; flex: 1;">
         <span class="eyebrow">${item.tipo_vehiculo || 'Vehículo'}</span>
@@ -347,5 +348,38 @@ function initQuoteForms() {
           submitBtn.disabled = false;
         });
     });
+  });
+}
+/* --- Menú hamburguesa (móvil) --- */
+function initMobileNav() {
+  const navToggle = document.querySelector('.nav-toggle');
+  const mainNav = document.querySelector('.main-nav');
+  const navOverlay = document.querySelector('.nav-overlay');
+
+  if (!navToggle || !mainNav || !navOverlay) return;
+
+  function toggleMenu() {
+    const isOpen = mainNav.classList.toggle('is-active');
+    navToggle.classList.toggle('is-active', isOpen);
+    navOverlay.classList.toggle('is-active', isOpen);
+    document.body.classList.toggle('nav-open', isOpen);
+    navToggle.setAttribute('aria-expanded', isOpen);
+  }
+
+  navToggle.addEventListener('click', toggleMenu);
+  navOverlay.addEventListener('click', toggleMenu);
+
+  // Cierra el menú al hacer clic en un link
+  mainNav.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      if (mainNav.classList.contains('is-active')) toggleMenu();
+    });
+  });
+
+  // Cierra el menú si se redimensiona a escritorio con el menú abierto
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768 && mainNav.classList.contains('is-active')) {
+      toggleMenu();
+    }
   });
 }
