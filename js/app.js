@@ -3,12 +3,24 @@
    ========================================================================== */
 
 // ⚠️ PON AQUÍ LA URL DE TU ÚLTIMO DESPLIEGUE DE APPS SCRIPT
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxhD4cZFe_u7Ucic9DEZt591ZSBlv-MScoRHpJkeWg7xAU58uV9pkEYY3TAvwAFt_wW/exec";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz9LITVaHUmuJ2joxwNIuAGMyJfDVkljgwQTAAts7kp_yr4xK0bFXcmcGnJn1VOEFw/exec";
+
+// ⚠️ Prefijo de las columnas de imagen en TODAS tus tablas (Catalogo_tours,
+// Hotel, vehiculos, catalogo_productos). Si en alguna tabla el nombre real es
+// distinto (ej. "foto" en vez de "imagen"), ajusta esa tabla en collectImages().
+const IMAGE_COLUMN_PREFIX = 'imagen';
+
+// Guarda TODOS los items cargados por tabla (para que el buscador filtre sin volver a pedir datos)
+const fullData = { tours: [], hotels: [], cars: [], products: [] };
+
+// Guarda lo que está actualmente pintado en pantalla (para que el modal abra el item correcto)
+const lastRendered = { tours: [], hotels: [], cars: [], products: [] };
 
 document.addEventListener('DOMContentLoaded', () => {
   initDynamicLoaders();
   initQuoteForms();
   initMobileNav();
+  initImageModal();
 });
 
 /* --- Inyecta la animación de carga (Skeleton Loader + Banner Animado) --- */
@@ -39,12 +51,11 @@ function initDynamicLoaders() {
   const toursGrid = document.getElementById('tours-grid');
   if (toursGrid) {
     renderSkeletonGrid(toursGrid, 8, "🔍 Buscando las mejores experiencias y tours...");
-    const state = { items: [] };
     fetchTable('Catalogo_tours', (data) => {
-      state.items = data;
-      renderCards(toursGrid, data, renderTourCard);
+      fullData.tours = data;
+      renderCards(toursGrid, data, renderTourCard, 'tours');
     });
-    wireSearchFilter('search-tours', toursGrid, state, renderTourCard, (item, q) => {
+    wireSearchFilter('search-tours', toursGrid, 'tours', renderTourCard, (item, q) => {
       const campos = [item.nombre, item.categoria, item.descripcion, item.notas];
       return campos.some(c => (c || '').toLowerCase().includes(q));
     });
@@ -53,12 +64,11 @@ function initDynamicLoaders() {
   const hotelsGrid = document.getElementById('hotels-grid');
   if (hotelsGrid) {
     renderSkeletonGrid(hotelsGrid, 8, "🏨 Buscando los mejores hoteles y hospedajes...");
-    const state = { items: [] };
     fetchTable('Hotel', (data) => {
-      state.items = data;
-      renderCards(hotelsGrid, data, renderHotelCard);
+      fullData.hotels = data;
+      renderCards(hotelsGrid, data, renderHotelCard, 'hotels');
     });
-    wireSearchFilter('search-hotels', hotelsGrid, state, renderHotelCard, (item, q) => {
+    wireSearchFilter('search-hotels', hotelsGrid, 'hotels', renderHotelCard, (item, q) => {
       const campos = [item.nombre, item.municipio, item.estado, item.pais, item.descripcion];
       return campos.some(c => (c || '').toLowerCase().includes(q));
     });
@@ -67,13 +77,23 @@ function initDynamicLoaders() {
   const carsGrid = document.getElementById('cars-grid');
   if (carsGrid) {
     renderSkeletonGrid(carsGrid, 8, "🚐 Cargando flotilla de vehículos disponibles...");
-    initCarsSection(carsGrid);
+    fetchTable('vehiculos', (data) => {
+      fullData.cars = data;
+      renderCards(carsGrid, data, renderCarCard, 'cars');
+    });
+    wireSearchFilter('search-cars', carsGrid, 'cars', renderCarCard, (item, q) => {
+      const campos = [item.tipo_vehiculo, item.nombre_vehiculo, item.marca, item.modelo];
+      return campos.some((campo) => (campo || '').toLowerCase().includes(q));
+    });
   }
 
   const productsGrid = document.getElementById('products-grid');
   if (productsGrid) {
     renderSkeletonGrid(productsGrid, 8, "✨ Cargando catálogo de opciones...");
-    fetchTable('catalogo_productos', (data) => renderCards(productsGrid, data, renderProductCard));
+    fetchTable('catalogo_productos', (data) => {
+      fullData.products = data;
+      renderCards(productsGrid, data, renderProductCard, 'products');
+    });
   }
 }
 
@@ -100,8 +120,10 @@ function fetchTable(tableName, callback) {
     });
 }
 
-/* --- Renderizado genérico --- */
-function renderCards(container, items, templateFn) {
+/* --- Renderizado genérico (guarda "type" para que el modal sepa de dónde sacar el item) --- */
+function renderCards(container, items, templateFn, type) {
+  lastRendered[type] = items;
+
   if (!items || items.length === 0) {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1rem;">
@@ -119,15 +141,28 @@ function renderCards(container, items, templateFn) {
   }).join('');
 }
 
-/* --- Construye URL de imagen alojada en AppSheet (tablas que guardan solo el nombre de archivo) --- */
+/* --- Construye URL de imagen alojada en AppSheet a partir del nombre de archivo crudo --- */
 function buildAppSheetImageUrl(appId, tableName, rutaRelativa) {
   if (!rutaRelativa) return null;
   return `https://www.appsheet.com/template/gettablefileurl?appName=${encodeURIComponent(appId)}&tableName=${encodeURIComponent(tableName)}&fileName=${encodeURIComponent(rutaRelativa)}`;
 }
 
-/* --- Redimensiona una imagen que ya es una URL pública directa (caso de "vehiculos") ---
-   Usa un servicio gratuito de resize para que fotos pesadas de celular no hagan
-   lenta la página cuando hay muchos vehículos. No modifica el archivo original. */
+/* --- Recolecta TODAS las imágenes de un item (imagen1, imagen2, imagen3...) ---
+   Extensible: si mañana agregas "imagen4" o "imagen5" en AppSheet, no hay que
+   tocar código, solo sube maxImages si algún día necesitas más de 6. */
+function collectImages(item, maxImages = 6) {
+  const images = [];
+  for (let i = 1; i <= maxImages; i++) {
+    const filename = item[`${IMAGE_COLUMN_PREFIX}${i}`];
+    if (filename) {
+      images.push(buildAppSheetImageUrl(item._appId, item._tableName, filename));
+    }
+  }
+  return images;
+}
+
+/* --- Redimensiona/optimiza cualquier URL de imagen a webp liviano ---
+   Funciona tanto con URLs de AppSheet como con URLs públicas directas. */
 function resizedImage(url, width, height) {
   if (!url) return null;
   const clean = String(url).replace(/^https?:\/\//, '');
@@ -141,28 +176,31 @@ function resizedImage(url, width, height) {
 }
 
 /* --- Buscador genérico: filtra los items ya cargados en memoria y vuelve a pintar --- */
-function wireSearchFilter(inputId, container, state, templateFn, matchFn) {
+function wireSearchFilter(inputId, container, type, templateFn, matchFn) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
-    const filtered = !q ? state.items : state.items.filter((item) => matchFn(item, q));
-    renderCards(container, filtered, templateFn);
+    const items = fullData[type];
+    const filtered = !q ? items : items.filter((item) => matchFn(item, q));
+    renderCards(container, filtered, templateFn, type);
   });
 }
 
+/* ==========================================================================
+   CARDS — todas muestran SOLO la imagen principal (imagen1)
+   ========================================================================== */
+
 // Catalogo_tours
-function renderTourCard(item) {
-  const imgSrc = buildAppSheetImageUrl(item._appId, item._tableName, item.imagen1)
-    || buildAppSheetImageUrl(item._appId, item._tableName, item.imagen2)
-    || buildAppSheetImageUrl(item._appId, item._tableName, item.imagen3)
-    || 'https://via.placeholder.com/400x250?text=Sin+Imagen';
+function renderTourCard(item, index) {
+  const images = collectImages(item);
+  const imgSrc = images.length ? resizedImage(images[0], 400, 250) : 'https://via.placeholder.com/400x250?text=Sin+Imagen';
   const desc = item.descripcion ? item.descripcion.substring(0, 100) + '...' : 'Sin descripción';
 
   return `
-    <div class="card">
-      <img src="${imgSrc}" alt="${item.nombre}" style="height: 200px; object-fit: cover; width: 100%;">
+    <div class="card" data-type="tours" data-index="${index}" style="cursor:pointer;">
+      <img src="${imgSrc}" alt="${item.nombre}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">
       <div style="padding: 1.25rem; display: flex; flex-direction: column; flex: 1;">
         <span class="eyebrow">${item.categoria || 'Tour'}</span>
         <h3 style="margin-bottom: 0.5rem; font-size: 1.15rem;">${item.nombre}</h3>
@@ -172,7 +210,7 @@ function renderTourCard(item) {
 
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--clr-border); padding-top: 0.75rem;">
           <span style="font-weight: 700; color: var(--clr-brand-primary); font-size: 1.2rem;">$${item.precio || 0} MXN</span>
-          <a href="https://wa.me/5210000000000?text=Hola,%20me%20interesa%20el%20tour%20${encodeURIComponent(item.nombre)}" class="btn btn-outline btn-sm" target="_blank">Reservar</a>
+          <a href="https://wa.me/5210000000000?text=Hola,%20me%20interesa%20el%20tour%20${encodeURIComponent(item.nombre)}" class="btn btn-outline btn-sm" target="_blank" onclick="event.stopPropagation()">Reservar</a>
         </div>
       </div>
     </div>
@@ -180,12 +218,15 @@ function renderTourCard(item) {
 }
 
 // Hotel
-function renderHotelCard(item) {
+function renderHotelCard(item, index) {
+  const images = collectImages(item);
+  const imgSrc = images.length ? resizedImage(images[0], 400, 250) : null;
   const ubicacion = [item.municipio, item.estado, item.pais].filter(Boolean).join(', ') || 'Ubicación no especificada';
   const direccion = [item.calle_numero, item.colonia].filter(Boolean).join(', ');
 
   return `
-    <div class="card">
+    <div class="card" data-type="hotels" data-index="${index}" style="cursor:pointer;">
+      ${imgSrc ? `<img src="${imgSrc}" alt="${item.nombre}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">` : ''}
       <div style="padding: 1.25rem; display: flex; flex-direction: column; flex: 1;">
         <span class="eyebrow">${item.categoria || 'Hotel'}</span>
         <h3 style="margin-bottom: 0.25rem; font-size: 1.2rem;">${item.nombre}</h3>
@@ -195,78 +236,21 @@ function renderHotelCard(item) {
         <p style="color: var(--clr-text-muted); font-size: 0.875rem; margin-bottom: 1.25rem; flex: 1;">${item.descripcion || ''}</p>
 
         <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--clr-border); padding-top: 0.75rem;">
-          <a href="cotizar.html" class="btn btn-primary btn-sm">Cotizar Estancia</a>
+          <a href="cotizar.html" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">Cotizar Estancia</a>
         </div>
       </div>
     </div>
   `;
 }
 
-/* ==========================================================================
-   VEHÍCULOS — carga, buscador y galería de fotos
-   ========================================================================== */
-
-// Guarda los vehículos ya cargados para poder filtrarlos sin volver a llamar a la API.
-function initCarsSection(carsGrid) {
-  const state = { items: [] };
-
-  fetchTable('vehiculos', (data) => {
-    state.items = data;
-    renderCards(carsGrid, data, renderCarCard);
-  });
-
-  wireSearchFilter('search-cars', carsGrid, state, renderCarCard, matchesCarQuery);
-
-  // Delegación de eventos: un solo listener en el contenedor cubre todas las
-  // miniaturas, incluidas las que se agregan después al filtrar o recargar.
-  carsGrid.addEventListener('click', (e) => {
-    const thumb = e.target.closest('.car-thumb');
-    if (!thumb) return;
-
-    const card = thumb.closest('.card');
-    const mainImg = card && card.querySelector('.car-main-img');
-    if (!mainImg) return;
-
-    mainImg.src = thumb.dataset.full;
-    card.querySelectorAll('.car-thumb').forEach((btn) => {
-      btn.style.borderColor = 'var(--clr-border)';
-    });
-    thumb.style.borderColor = 'var(--clr-brand-primary)';
-  });
-}
-
-function matchesCarQuery(item, q) {
-  const campos = [item.tipo_vehiculo, item.nombre_vehiculo, item.marca, item.modelo];
-  return campos.some((campo) => (campo || '').toLowerCase().includes(q));
-}
-
 // vehiculos
 function renderCarCard(item, index) {
-  const images = [item.imagen1_url, item.imagen2_url, item.imagen3_url].filter(
-    (u) => u && String(u).trim().length > 0
-  );
-
-  const mainImg = images.length > 0 ? resizedImage(images[0], 500, 320) : null;
-
-  const thumbsHtml = images.length > 1
-    ? `<div style="display:flex; gap:6px; padding:8px; background: rgba(0,0,0,0.04);">
-        ${images
-      .map((src, i) => `
-            <button type="button" class="car-thumb" data-full="${resizedImage(src, 500, 320)}"
-              style="all:unset; cursor:pointer; width:48px; height:36px; border-radius:4px; overflow:hidden;
-              border:1px solid ${i === 0 ? 'var(--clr-brand-primary)' : 'var(--clr-border)'}; flex-shrink:0;">
-              <img src="${resizedImage(src, 100, 75)}" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block;">
-            </button>`)
-      .join('')}
-      </div>`
-    : '';
+  const images = collectImages(item);
+  const imgSrc = images.length ? resizedImage(images[0], 500, 320) : null;
 
   return `
-    <div class="card">
-      ${mainImg
-      ? `<img class="car-main-img" src="${mainImg}" alt="${item.marca || ''} ${item.modelo || ''}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">`
-      : ''}
-      ${thumbsHtml}
+    <div class="card" data-type="cars" data-index="${index}" style="cursor:pointer;">
+      ${imgSrc ? `<img src="${imgSrc}" alt="${item.marca || ''} ${item.modelo || ''}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">` : ''}
       <div style="padding: 1.25rem; display: flex; flex-direction: column; flex: 1;">
         <span class="eyebrow">${item.tipo_vehiculo || 'Vehículo'}</span>
         <h3 style="margin-bottom: 0.25rem; font-size: 1.15rem;">${item.nombre_vehiculo || item.modelo}</h3>
@@ -278,7 +262,7 @@ function renderCarCard(item, index) {
         </div>
 
         <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--clr-border); padding-top: 0.75rem; margin-top: auto;">
-          <a href="cotizar.html" class="btn btn-outline btn-sm">Solicitar Vehículo</a>
+          <a href="cotizar.html" class="btn btn-outline btn-sm" onclick="event.stopPropagation()">Solicitar Vehículo</a>
         </div>
       </div>
     </div>
@@ -286,15 +270,13 @@ function renderCarCard(item, index) {
 }
 
 // catalogo_productos
-function renderProductCard(item) {
-  const imgSrc = buildAppSheetImageUrl(item._appId, item._tableName, item.imagen1)
-    || buildAppSheetImageUrl(item._appId, item._tableName, item.imagen2)
-    || buildAppSheetImageUrl(item._appId, item._tableName, item.imagen3)
-    || 'https://via.placeholder.com/400x250?text=Sin+Imagen';
+function renderProductCard(item, index) {
+  const images = collectImages(item);
+  const imgSrc = images.length ? resizedImage(images[0], 400, 250) : 'https://via.placeholder.com/400x250?text=Sin+Imagen';
 
   return `
-    <div class="card">
-      <img src="${imgSrc}" alt="${item.Nombre || ''}" style="height: 200px; object-fit: cover; width: 100%;">
+    <div class="card" data-type="products" data-index="${index}" style="cursor:pointer;">
+      <img src="${imgSrc}" alt="${item.Nombre || ''}" loading="lazy" style="height: 200px; object-fit: cover; width: 100%;">
       <div style="padding: 1.25rem; display: flex; flex-direction: column; flex: 1;">
         <h3 style="margin-bottom: 0.5rem; font-size: 1.15rem;">${item.Nombre || '(Sin nombre)'}</h3>
         <div style="margin-top: auto; border-top: 1px solid var(--clr-border); padding-top: 0.75rem;">
@@ -303,6 +285,126 @@ function renderProductCard(item) {
       </div>
     </div>
   `;
+}
+
+/* ==========================================================================
+   MODAL DE DETALLES — carga el resto de imágenes SOLO al abrir
+   ========================================================================== */
+
+function buildModalContent(type, item) {
+  const images = collectImages(item);
+  let subtitle = '';
+  let description = item.descripcion || '';
+  let extraHtml = '';
+  let ctaHtml = '';
+
+  if (type === 'tours') {
+    subtitle = item.categoria || 'Tour';
+    extraHtml = `<p style="font-weight:700; color:var(--clr-brand-primary); font-size:1.3rem; margin-top:1rem;">$${item.precio || 0} MXN</p>`;
+    ctaHtml = `<a href="https://wa.me/5210000000000?text=Hola,%20me%20interesa%20el%20tour%20${encodeURIComponent(item.nombre)}" class="btn btn-primary" target="_blank">Reservar por WhatsApp</a>`;
+  } else if (type === 'hotels') {
+    const ubicacion = [item.municipio, item.estado, item.pais].filter(Boolean).join(', ');
+    const direccion = [item.calle_numero, item.colonia].filter(Boolean).join(', ');
+    subtitle = `📍 ${ubicacion}`;
+    extraHtml = direccion ? `<p style="color:var(--clr-text-muted); font-size:0.85rem;">${direccion}</p>` : '';
+    ctaHtml = `<a href="cotizar.html" class="btn btn-primary">Cotizar Estancia</a>`;
+  } else if (type === 'cars') {
+    subtitle = item.tipo_vehiculo || 'Vehículo';
+    description = `${item.marca || ''} ${item.modelo || ''}`;
+    extraHtml = `
+      <div style="background: var(--clr-brand-surface); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.9rem; margin-top:1rem;">
+        <div>👥 <strong>Capacidad:</strong> ${item.capacidad || 'N/A'} pasajeros</div>
+        ${item['km/l'] ? `<div>⛽ <strong>Rendimiento:</strong> ${item['km/l']} km/l</div>` : ''}
+      </div>`;
+    ctaHtml = `<a href="cotizar.html" class="btn btn-primary">Solicitar Vehículo</a>`;
+  } else if (type === 'products') {
+    extraHtml = `<p style="font-weight:700; color:var(--clr-brand-primary); font-size:1.3rem; margin-top:1rem;">$${item.Precio || 0}</p>`;
+  }
+
+  return {
+    title: item.nombre || item.Nombre || item.nombre_vehiculo || '',
+    subtitle,
+    description,
+    extraHtml,
+    ctaHtml,
+    images
+  };
+}
+
+function initImageModal() {
+  const modalHtml = `
+    <div class="modal-backdrop" id="details-modal">
+      <div class="modal-window">
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+        <div class="modal-body">
+          <span class="eyebrow" id="modal-subtitle"></span>
+          <h2 id="modal-title" style="margin-bottom: 0.75rem;"></h2>
+          <img id="modal-main-img" style="width:100%; height:320px; object-fit:cover; border-radius: var(--radius-sm); display:none;">
+          <div class="modal-gallery" id="modal-gallery"></div>
+          <p id="modal-description" style="color:var(--clr-text-muted); margin-top:1rem;"></p>
+          <div id="modal-extra"></div>
+          <div id="modal-cta" style="margin-top:1.5rem;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const modal = document.getElementById('details-modal');
+  const closeBtn = document.getElementById('modal-close-btn');
+
+  function closeModal() {
+    modal.classList.remove('is-open');
+    document.body.classList.remove('nav-open');
+  }
+
+  closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // Delegación: cualquier card con data-type/data-index abre el modal
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.card[data-type]');
+    if (!card) return;
+
+    const type = card.dataset.type;
+    const index = parseInt(card.dataset.index, 10);
+    const item = lastRendered[type] && lastRendered[type][index];
+    if (!item) return;
+
+    const content = buildModalContent(type, item);
+
+    document.getElementById('modal-subtitle').textContent = content.subtitle;
+    document.getElementById('modal-title').textContent = content.title;
+    document.getElementById('modal-description').textContent = content.description;
+    document.getElementById('modal-extra').innerHTML = content.extraHtml;
+    document.getElementById('modal-cta').innerHTML = content.ctaHtml;
+
+    const mainImg = document.getElementById('modal-main-img');
+    const gallery = document.getElementById('modal-gallery');
+
+    if (content.images.length > 0) {
+      // Aquí es donde se piden imagen2, imagen3... (SOLO al abrir el modal)
+      mainImg.src = resizedImage(content.images[0], 700, 450);
+      mainImg.style.display = 'block';
+
+      gallery.innerHTML = content.images.map(src => `
+        <img src="${resizedImage(src, 200, 150)}" loading="lazy" data-full="${resizedImage(src, 700, 450)}">
+      `).join('');
+    } else {
+      mainImg.style.display = 'none';
+      gallery.innerHTML = '';
+    }
+
+    modal.classList.add('is-open');
+  });
+
+  document.getElementById('modal-gallery').addEventListener('click', (e) => {
+    if (e.target.tagName === 'IMG') {
+      document.getElementById('modal-main-img').src = e.target.dataset.full;
+    }
+  });
 }
 
 /* --- Procesar Cotizaciones vía fetch POST --- */
@@ -350,6 +452,7 @@ function initQuoteForms() {
     });
   });
 }
+
 /* --- Menú hamburguesa (móvil) --- */
 function initMobileNav() {
   const navToggle = document.querySelector('.nav-toggle');
