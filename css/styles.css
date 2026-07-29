@@ -173,9 +173,16 @@ h1 em {
   top: 0;
   z-index: 100;
   background-color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid var(--clr-border);
+}
+
+.site-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--clr-border);
+  z-index: -1;
 }
 
 .header-inner {
